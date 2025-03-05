@@ -5,7 +5,7 @@ import serial
 import time
 
 # Inicializa la comunicación serial (ajusta COM según tu PC y velocidad según el Arduino)
-ser = serial.Serial('COM3', 9600, timeout=1)  # Cambia 'COM3' según corresponda
+ser = serial.Serial('COM4', 9600, timeout=1)  # Cambia 'COM3' por el puerto correcto
 time.sleep(2)  # Espera que el puerto esté listo
 
 # Inicializamos MediaPipe Hands
@@ -38,48 +38,33 @@ with mp_hands.Hands(static_image_mode=False, max_num_hands=1,
             for landmarks in resultado.multi_hand_landmarks:
                 mp_drawing.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
 
-                # Obtenemos coordenadas de puntos clave
-                h, w, _ = frame.shape
+                # Obtenemos coordenadas de THUMB_TIP e INDEX_FINGER_TIP
                 thumb_tip = landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP]
                 index_tip = landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
-                wrist = landmarks.landmark[mp_hands.HandLandmark.WRIST]
-                pinky_tip = landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP]
 
                 # Convertimos a coordenadas de píxeles
+                h, w, _ = frame.shape
                 thumb_tip_px = (int(thumb_tip.x * w), int(thumb_tip.y * h))
                 index_tip_px = (int(index_tip.x * w), int(index_tip.y * h))
-                wrist_px = (int(wrist.x * w), int(wrist.y * h))
-                pinky_tip_px = (int(pinky_tip.x * w), int(pinky_tip.y * h))
 
-                # Dibujamos línea entre pulgar e índice
+                # Dibujamos línea entre los dedos
                 cv2.line(frame, thumb_tip_px, index_tip_px, (0, 255, 0), 3)
 
-                # Distancia entre pulgar e índice (gesto)
-                dist_gesto = calcular_distancia(thumb_tip_px, index_tip_px)
+                # Calculamos la distancia y porcentaje
+                distancia = calcular_distancia(thumb_tip_px, index_tip_px)
+                porcentaje = int(np.clip((distancia / w) * 100, 0, 100))
 
-                # Distancia relativa de la mano (distancia entre muñeca y meñique)
-                dist_mano = calcular_distancia(wrist_px, pinky_tip_px)
-
-                # Calcular porcentaje ajustado por distancia a la cámara
-                porcentaje_base = np.clip((dist_gesto / w) * 100, 0, 100)
-                
-                # Factor de escala basado en el tamaño de la mano
-                factor_distancia = np.clip(1 - (dist_mano / w), 0.5, 1)  # Más lejos -> más pequeño
-                porcentaje_ajustado = int(porcentaje_base * factor_distancia)
-
-                # Mostrar en pantalla
-                cv2.putText(frame, f"Distancia: {dist_gesto:.2f}px", 
+                # Mostramos en pantalla
+                cv2.putText(frame, f"Distancia: {distancia:.2f}px - {porcentaje}%", 
                             (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                cv2.putText(frame, f"Porcentaje: {porcentaje_ajustado}%", 
-                            (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-                # Enviar el valor ajustado al Arduino
-                ser.write(f"{porcentaje_ajustado}\n".encode('utf-8'))
+                # Enviamos el valor al Arduino
+                ser.write(f"{porcentaje}\n".encode('utf-8'))  # Enviamos el valor como string seguido de \n
 
-        # Mostrar el frame
+        # Mostramos el frame
         cv2.imshow('Detección de Mano', frame)
 
-        if cv2.waitKey(1) & 0xFF == 27:  # ESC para salir
+        if cv2.waitKey(1) & 0xFF == 27:  # Presiona ESC para salir
             break
 
 cap.release()
