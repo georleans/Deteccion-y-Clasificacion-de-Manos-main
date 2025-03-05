@@ -1,6 +1,12 @@
 import cv2
 import mediapipe as mp
 import numpy as np
+import serial
+import time
+
+# Inicializa la comunicación serial (ajusta COM según tu PC y velocidad según el Arduino)
+ser = serial.Serial('COM3', 9600, timeout=1)  # Cambia 'COM3' por el puerto correcto
+time.sleep(2)  # Espera que el puerto esté listo
 
 # Inicializamos MediaPipe Hands
 mp_hands = mp.solutions.hands
@@ -13,7 +19,10 @@ def calcular_distancia(p1, p2):
 # Inicializamos captura de video
 cap = cv2.VideoCapture(0)
 
-with mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
+with mp_hands.Hands(static_image_mode=False, max_num_hands=1, 
+                    min_detection_confidence=0.5, 
+                    min_tracking_confidence=0.5) as hands:
+    
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -38,16 +47,19 @@ with mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_conf
                 thumb_tip_px = (int(thumb_tip.x * w), int(thumb_tip.y * h))
                 index_tip_px = (int(index_tip.x * w), int(index_tip.y * h))
 
-                # Dibujamos una línea entre los dos puntos
+                # Dibujamos línea entre los dedos
                 cv2.line(frame, thumb_tip_px, index_tip_px, (0, 255, 0), 3)
 
-                # Calculamos distancia y porcentaje (esto es arbitrario, ajusta según tu necesidad)
+                # Calculamos la distancia y porcentaje
                 distancia = calcular_distancia(thumb_tip_px, index_tip_px)
-                porcentaje = np.clip((distancia / w) * 100, 0, 100)  # Porcentaje relativo al ancho de la pantalla
+                porcentaje = int(np.clip((distancia / w) * 100, 0, 100))
 
-                # Mostramos el porcentaje en pantalla
-                texto = f"Distancia: {distancia:.2f}px - {porcentaje:.2f}%"
-                cv2.putText(frame, texto, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+                # Mostramos en pantalla
+                cv2.putText(frame, f"Distancia: {distancia:.2f}px - {porcentaje}%", 
+                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+                # Enviamos el valor al Arduino
+                ser.write(f"{porcentaje}\n".encode('utf-8'))  # Enviamos el valor como string seguido de \n
 
         # Mostramos el frame
         cv2.imshow('Detección de Mano', frame)
@@ -57,3 +69,4 @@ with mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_conf
 
 cap.release()
 cv2.destroyAllWindows()
+ser.close()
