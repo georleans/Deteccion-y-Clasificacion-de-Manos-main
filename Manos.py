@@ -89,6 +89,7 @@ while True:
                     f'Distancias (px) - Thumb: {dist_thumb:.1f}, Index: {dist_index:.1f}, Middle: {dist_middle:.1f}, Ring: {dist_ring:.1f}, Pinky: {dist_pinky:.1f}')
 
     # Mostrar el video
+    #hdsadkhjasdjhahsjkd
     cv2.imshow("Video", frame)
 
     # Salir con ESC o cuando se lleguen a 300 fotos (puedes quitar esto si solo quieres detección)
