@@ -1,71 +1,100 @@
 import cv2
 import mediapipe as mp
 import os
+import math
 
-#----------------------------- Creamos la carpeta donde almacenaremos el entrenamiento ---------------------------------
+# ----------------------------- Crear carpeta para almacenar fotos (si es necesario) ---------------------------------
 nombre = 'Mano_Izquierda'
 direccion = 'C:/Users/georl/OneDrive/Desktop/Trabajos_Universidad/SEPTIMO SEMESTRE 2025-I/PROYECTO INTEGRADOR 2025-I/Deteccion-y-Clasificacion-de-Manos-main/Fotos/Entrenamiento'
 carpeta = direccion + '/' + nombre
 if not os.path.exists(carpeta):
-    print('Carpeta creada: ',carpeta)
+    print('Carpeta creada: ', carpeta)
     os.makedirs(carpeta)
 
-#Asignamos un contador para el nombre de la fotos
-cont = 0
+cont = 0  # Contador de fotos
 
-#Leemos la camara
+# Inicializar cámara
 cap = cv2.VideoCapture(0)
 
-#----------------------------Creamos un obejto que va almacenar la deteccion y el seguimiento de las manos------------
-clase_manos  =  mp.solutions.hands
-manos = clase_manos.Hands() #Primer parametro, FALSE para que no haga la deteccion 24/7
-                            #Solo hara deteccion cuando hay una confianza alta
-                            #Segundo parametro: numero maximo de manos
-                            #Tercer parametro: confianza minima de deteccion
-                            #Cuarto parametro: confianza minima de seguimiento
+# Configuración de MediaPipe Hands
+mp_hands = mp.solutions.hands
+manos = mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.5,
+                       min_tracking_confidence=0.5)
 
-#----------------------------------Metodo para dibujar las manos---------------------------
-dibujo = mp.solutions.drawing_utils #Con este metodo dibujamos 21 puntos criticos de la mano
+# Utilidad para dibujar
+mp_dibujo = mp.solutions.drawing_utils
 
 
-while (1):
-    ret,frame = cap.read()
-    color = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    copia = frame.copy()
-    resultado = manos.process(color)
-    posiciones = []  # En esta lista vamos a almacenar las coordenadas de los puntos
-    #print(resultado.multi_hand_landmarks) #Si queremos ver si existe la deteccion
-
-    if resultado.multi_hand_landmarks: #Si hay algo en los resultados entramos al if
-        for mano in resultado.multi_hand_landmarks:  #Buscamos la mano dentro de la lista de manos que nos da el descriptor
-            for id, lm in enumerate(mano.landmark):  #Vamos a obtener la informacion de cada mano encontrada por el ID
-                #print(id,lm) #Como nos entregan decimales (Proporcion de la imagen) debemos pasarlo a pixeles
-                alto, ancho, c = frame.shape  #Extraemos el ancho y el alto de los fotpgramas para multiplicarlos por la proporcion
-                corx, cory = int(lm.x*ancho), int(lm.y*alto) #Extraemos la ubicacion de cada punto que pertence a la mano en coordenadas
-                posiciones.append([id,corx,cory])
-                dibujo.draw_landmarks(frame, mano, clase_manos.HAND_CONNECTIONS)
-            if len(posiciones) != 0:
-                pto_i1 = posiciones[4] #5 Dedos: 4 | 0 Dedos: 3 | 1 Dedo: 2 | 2 Dedos: 3 | 3 Dedos: 4 | 4 Dedos: 8
-                pto_i2 = posiciones[20]#5 Dedos: 20| 0 Dedos: 17| 1 Dedo: 17| 2 Dedos: 20| 3 Dedos: 20| 4 Dedos: 20
-                pto_i3 = posiciones[12]#5 Dedos: 12| 0 Dedos: 10 | 1 Dedo: 20|2 Dedos: 16| 3 Dedos: 12| 4 Dedos: 12
-                pto_i4 = posiciones[0] #5 Dedos: 0 | 0 Dedos: 0 | 1 Dedo: 0 | 2 Dedos: 0 | 3 Dedos: 0 | 4 Dedos: 0
-                pto_i5 = posiciones[9] #Punto central
-                x1,y1 = (pto_i5[1]-80),(pto_i5[2]-80) #Obtenemos el punto incial y las longitudes
-                ancho, alto = (x1+80),(y1+80)
-                x2,y2 = x1 + ancho, y1 + alto
-                dedos_reg = copia[y1:y2, x1:x2]
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
-            #dedos_reg = cv2.resize(dedos_reg,(200,200), interpolation = cv2.INTER_CUBIC) #Redimensionamos las fotos
-            #cv2.imwrite(carpeta + "/Mano_{}.jpg".format(cont),dedos_reg)
-            #cont = cont + 1
+# Función para calcular distancia euclidiana entre dos puntos
+def calcular_distancia(p1, p2):
+    return math.sqrt((p2[1] - p1[1]) ** 2 + (p2[2] - p1[2]) ** 2)
 
 
+# Bucle principal
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
 
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    resultado = manos.process(frame_rgb)
 
+    posiciones = []  # Almacena coordenadas de los landmarks
 
-    cv2.imshow("Video",frame)
+    if resultado.multi_hand_landmarks:
+        for mano in resultado.multi_hand_landmarks:
+            alto, ancho, _ = frame.shape
+
+            for id, lm in enumerate(mano.landmark):
+                corx, cory = int(lm.x * ancho), int(lm.y * alto)
+                posiciones.append([id, corx, cory])
+
+            # Dibujar la mano detectada
+            mp_dibujo.draw_landmarks(frame, mano, mp_hands.HAND_CONNECTIONS)
+
+            # Si detectamos los 21 puntos, calculamos distancias
+            if len(posiciones) == 21:
+                wrist = posiciones[0]
+                thumb_tip = posiciones[4]
+                index_tip = posiciones[8]
+                middle_tip = posiciones[12]
+                ring_tip = posiciones[16]
+                pinky_tip = posiciones[20]
+
+                # Calcular distancias desde la muñeca (wrist) a cada punta de dedo
+                dist_thumb = calcular_distancia(wrist, thumb_tip)
+                dist_index = calcular_distancia(wrist, index_tip)
+                dist_middle = calcular_distancia(wrist, middle_tip)
+                dist_ring = calcular_distancia(wrist, ring_tip)
+                dist_pinky = calcular_distancia(wrist, pinky_tip)
+
+                # Tomar la distancia máxima como referencia (dedo medio suele ser el más largo)
+                max_dist = dist_middle
+
+                # Calcular porcentajes
+                percent_thumb = (dist_thumb / max_dist) * 100
+                percent_index = (dist_index / max_dist) * 100
+                percent_middle = (dist_middle / max_dist) * 100
+                percent_ring = (dist_ring / max_dist) * 100
+                percent_pinky = (dist_pinky / max_dist) * 100
+
+                # Mostrar porcentajes sobre el video
+                texto = f'Thumb: {percent_thumb:.1f}%, Index: {percent_index:.1f}%, Middle: {percent_middle:.1f}%'
+                texto += f', Ring: {percent_ring:.1f}%, Pinky: {percent_pinky:.1f}%'
+
+                cv2.putText(frame, texto, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+                # (Opcional) Mostrar las distancias reales en consola
+                print(
+                    f'Distancias (px) - Thumb: {dist_thumb:.1f}, Index: {dist_index:.1f}, Middle: {dist_middle:.1f}, Ring: {dist_ring:.1f}, Pinky: {dist_pinky:.1f}')
+
+    # Mostrar el video
+    cv2.imshow("Video", frame)
+
+    # Salir con ESC o cuando se lleguen a 300 fotos (puedes quitar esto si solo quieres detección)
     k = cv2.waitKey(1)
     if k == 27 or cont >= 300:
         break
+
 cap.release()
 cv2.destroyAllWindows()
