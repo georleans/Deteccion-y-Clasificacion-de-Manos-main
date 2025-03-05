@@ -62,7 +62,7 @@ while (1):
 
 
 
-
+    # COMENTARIO DE PRUEBA
     cv2.imshow("Video",frame)
     k = cv2.waitKey(1)
     if k == 27 or cont >= 300:
