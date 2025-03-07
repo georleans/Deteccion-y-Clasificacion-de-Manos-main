@@ -17,7 +17,7 @@ def calcular_distancia(p1, p2):
     return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
 # Inicializamos captura de video
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 
 with mp_hands.Hands(static_image_mode=False, max_num_hands=1, 
                     min_detection_confidence=0.5, 
